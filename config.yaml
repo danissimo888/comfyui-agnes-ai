@@ -1,0 +1,36 @@
+# ComfyUI Agnes AI Extension - Default Configuration
+# ==================================================
+# Get your free API key at: https://platform.agnes-ai.com/
+#
+# You can set the API key via:
+#   1. This config file (api_key field)
+#   2. Environment variable: AGNES_API_KEY
+#   3. Node input field in ComfyUI (per-node override)
+
+api_key: ""  # Set your Agnes API key here, or use AGNES_API_KEY env var
+
+# Default models (can be overridden in each node)
+models:
+  chat: agnes-2.0-flash
+  image: agnes-image-2.1-flash
+  video: agnes-video-v2.0
+
+# API settings
+api:
+  base_url: https://apihub.agnes-ai.com/v1
+  timeout: 300
+  video_poll_interval: 10
+  video_max_wait: 600
+
+# Image generation defaults
+image:
+  default_size: 1024x1024
+  default_n: 1
+  max_n: 4
+
+# Video generation defaults
+video:
+  default_frames: 121    # ~5 seconds at 24fps
+  default_fps: 24
+  max_frames: 441         # ~18 seconds at 24fps
+  frame_step: 8           # Must satisfy (frames-1) % 8 == 0
