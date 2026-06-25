@@ -224,10 +224,8 @@ class AgnesClient:
 
         if mode == "img2img" and reference_images:
             image_uris = [pil_to_base64_uri(img) for img in reference_images]
-            payload["extra_body"] = {
-                "image": image_uris,
-                "response_format": "url",
-            }
+            payload["image"] = image_uris
+            payload["response_format"] = "url"
 
         resp = self.session.post(url, json=payload, timeout=300)
         if resp.status_code != 200:

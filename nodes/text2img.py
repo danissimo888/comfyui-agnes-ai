@@ -41,25 +41,27 @@ ASPECT_RATIOS = [
 def compute_size(quality: str, aspect_ratio: str) -> str:
     """
     Compute a WxH pixel size string from quality level and aspect ratio.
-
-    quality: "1K" / "2K" / "4K" — determines the short-side pixel count.
-    aspect_ratio: "W:H" — e.g. "16:9", "2:3".
-
-    Returns: e.g. "1792x1024"
+    Uses base as the short side, then caps max dimension at 4096.
     """
     base = QUALITY_MAP.get(quality, 1024)
     w_ratio, h_ratio = map(int, aspect_ratio.split(":"))
 
     if w_ratio >= h_ratio:
-        # Landscape or square: height = base, width scales up
         height = base
         width = base * w_ratio // h_ratio
     else:
-        # Portrait: width = base, height scales up
         width = base
         height = base * h_ratio // w_ratio
 
-    # Round to nearest 8 (common AI model alignment requirement)
+    max_dim = 4096
+    if max(width, height) > max_dim:
+        if width >= height:
+            height = max_dim * height // width
+            width = max_dim
+        else:
+            width = max_dim * width // height
+            height = max_dim
+
     width = max(64, (width // 8) * 8)
     height = max(64, (height // 8) * 8)
 
