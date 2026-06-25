@@ -140,7 +140,7 @@ class AgnesClient:
         self.api_key = api_key
         self.session = requests.Session()
         self.session.headers.update({
-            "Authorization": api_key,
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         })
 
