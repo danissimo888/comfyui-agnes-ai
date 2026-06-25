@@ -199,6 +199,7 @@ class AgnesClient:
         size: str = DEFAULT_SIZE,
         n: int = 1,
         model: str = IMAGE_MODEL,
+        negative_prompt: str = "",
     ) -> List[Image.Image]:
         """
         Generate images via the Agnes image generation API.
@@ -221,6 +222,8 @@ class AgnesClient:
             "size": size,
             "n": n,
         }
+        if negative_prompt:
+            payload["negative_prompt"] = negative_prompt
 
         if mode == "img2img" and reference_images:
             image_uris = [pil_to_base64_uri(img) for img in reference_images]

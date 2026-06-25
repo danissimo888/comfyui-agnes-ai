@@ -112,6 +112,14 @@ class AgnesTextToImage:
                     "tooltip": "Number of images to generate (more takes longer)",
                 }),
             },
+            "optional": {
+                "negative_prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "placeholder": "ugly, blurry, distorted, low quality...",
+                    "tooltip": "Things to avoid in the generated image",
+                }),
+            },
         }
 
     def generate(
@@ -122,6 +130,7 @@ class AgnesTextToImage:
         quality: str = "1K",
         aspect_ratio: str = "1:1",
         n: int = 1,
+        negative_prompt: str = "",
     ):
         if not prompt.strip():
             raise ValueError("Prompt is empty. Please provide an image description.")
@@ -141,6 +150,7 @@ class AgnesTextToImage:
             size=size,
             n=n,
             model=model,
+            negative_prompt=negative_prompt.strip(),
         )
 
         if not pil_images:

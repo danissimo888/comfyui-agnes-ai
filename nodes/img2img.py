@@ -135,6 +135,12 @@ class AgnesImageToImage:
                 "reference_image_4": ("IMAGE", {
                     "tooltip": "Additional reference image (multi-image input)",
                 }),
+                "negative_prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "placeholder": "ugly, blurry, distorted, low quality...",
+                    "tooltip": "Things to avoid in the generated image",
+                }),
             },
         }
 
@@ -151,6 +157,7 @@ class AgnesImageToImage:
         reference_image_2=None,
         reference_image_3=None,
         reference_image_4=None,
+        negative_prompt: str = "",
     ):
         # Runtime fallback: try config file if widget value is empty
         if not api_key.strip():
@@ -186,6 +193,7 @@ class AgnesImageToImage:
             size=size,
             n=n,
             model=model,
+            negative_prompt=negative_prompt.strip() if negative_prompt else "",
         )
 
         if not pil_images:
