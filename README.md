@@ -1,114 +1,209 @@
 # ComfyUI Agnes AI Extension
 
-ComfyUI 自定义节点插件，让你在 ComfyUI 中直接调用 Agnes AI 的全模态模型。
+Custom node plugin for ComfyUI that lets you call Agnes AI's multimodal models directly within ComfyUI.
 
-## 功能节点
+## Nodes
 
-| 节点名称 | 功能 | 模型 |
+| Node Name | Function | Model |
 |---------|------|------|
-| **Agnes API Key Config** | 🔑 持久化保存 API Key（推荐首次运行） | — |
-| **Agnes LLM Chat** | LLM 文本对话 | agnes-2.0-flash |
-| **Agnes Image Reverse Prompt** | 图像反推提示词 | agnes-2.0-flash (vision) |
-| **Agnes Image-to-Image** | 图生图 / 图片编辑（支持多图输入） | agnes-image-2.1-flash |
-| **Agnes Text-to-Image** | 文生图 | agnes-image-2.1-flash |
-| **Agnes Image-to-Video** | 图生视频（支持多图/关键帧） | agnes-video-v2.0 |
-| **Agnes Text-to-Video** | 文生视频 | agnes-video-v2.0 |
+| **Agnes API Key Config** | Persistently save API Key (recommended on first run) | — |
+| **Agnes LLM Chat** | LLM text conversation | agnes-2.0-flash |
+| **Agnes Image Reverse Prompt** | Image-to-prompt analysis | agnes-2.0-flash (vision) |
+| **Agnes Image-to-Image** | Image editing (supports multi-image input) | agnes-image-2.1-flash |
+| **Agnes Text-to-Image** | Text-to-image generation | agnes-image-2.1-flash |
+| **Agnes Image-to-Video** | Image-to-video (supports multi-image/keyframes) | agnes-video-v2.0 |
+| **Agnes Text-to-Video** | Text-to-video generation | agnes-video-v2.0 |
 
-## 安装方法
+## Installation
 
-### 方法一：Git 克隆
+### Option 1: Git Clone
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/yourusername/comfyui_agnes_ai.git
-cd comfyui_agnes_ai
+git clone https://github.com/danissimo888/comfyui-agnes-ai.git
+cd comfyui-agnes-ai
 pip install -r requirements.txt
 ```
 
-### 方法二：手动安装
+### Option 2: Manual Install
 
-1. 下载此插件文件夹
-2. 将其放入 `ComfyUI/custom_nodes/` 目录
-3. 安装依赖：`pip install -r requirements.txt`
-4. 重启 ComfyUI
+1. Download this plugin folder
+2. Place it in the `ComfyUI/custom_nodes/` directory
+3. Install dependencies: `pip install -r requirements.txt`
+4. Restart ComfyUI
 
-### 方法三：ComfyUI Manager
+## Getting an API Key
 
-在 ComfyUI Manager 中搜索 "Agnes AI" 并安装。
+1. Visit [https://platform.agnes-ai.com/](https://platform.agnes-ai.com/)
+2. Register / Log in
+3. Create an API Key (currently free)
 
-## 获取 API Key
+## Quick Start: Configure API Key
 
-1. 访问 [https://platform.agnes-ai.com/](https://platform.agnes-ai.com/)
-2. 注册/登录账号
-3. 创建 API Key（目前免费）
+**Recommended** — Use the `Agnes API Key Config` node:
 
-## 快速开始：配置 API Key
+1. In the node menu → **Agnes AI** → add **Agnes API Key Config**
+2. Enter your API Key in the `api_key` field (e.g. `sk-xxx...`)
+3. Run once (Ctrl+Enter / Queue Prompt)
+4. The key is automatically saved to `api_key_config.json` in the plugin directory
+5. Leave the `api_key` field empty on all other Agnes nodes — they will auto-load it
 
-**推荐方式** — 使用 `Agnes API Key Config` 节点：
+**Alternative** — Environment variable or direct input:
+- Environment variable: set `AGNES_API_KEY` (highest priority)
+- Direct input: manually enter the key in each node's `api_key` field
 
-1. 在节点菜单 → **Agnes AI** → 添加 **Agnes API Key Config**
-2. 在 `api_key` 输入框填入你的 API Key（例如 `sk-xxx...`）
-3. 运行一次（Ctrl+Enter / Queue Prompt）
-4. Key 会自动保存到插件目录的 `api_key_config.json` 文件中
-5. 之后所有其他 Agnes 节点的 `api_key` 字段留空即可自动加载
-
-**备用方式** — 环境变量或直接输入：
-- 环境变量：设置 `AGNES_API_KEY`（优先级最高）
-- 直接输入：在每个节点的 `api_key` 字段手动填写（单次有效）
-
-### API Key 加载优先级
+### API Key Loading Priority
 
 ```
-环境变量 AGNES_API_KEY  >  api_key_config.json  >  节点输入框默认值
+Environment variable AGNES_API_KEY  >  api_key_config.json  >  Runtime fallback load  >  Node input field
 ```
 
-## 节点使用说明
+> Note: The `api_key` widget always shows a gray placeholder `sk-...` and will never display the actual key in plain text.
 
-### 🔑 Agnes API Key Config
-- **首次运行即可**，将 API Key 持久化保存
-- Key 以明文存储在 `api_key_config.json`（仅本机可访问）
-- 设置 `clear_key = YES` 可清除已保存的 Key
-- 输出 status 和 masked_key 供确认
+## Node Usage Guide
+
+### Agnes API Key Config
+- **Run once** to persistently save your API Key
+- Key is stored in plain text in `api_key_config.json` (local access only)
+- Set `clear_key = YES` to delete the saved key
+- Outputs `status` and `masked_key` for confirmation
 
 ### Agnes LLM Chat
-- 输入文本消息，获取 LLM 回复
-- 可选设置 System Prompt 控制 AI 行为
-- 可调节 temperature 和 max_tokens
+- Input a text message, get an LLM response
+- Optionally set a System Prompt to control AI behavior
+- Adjustable temperature (0.0-2.0) and max_tokens
 
 ### Agnes Image Reverse Prompt
-- 输入图片，自动分析并生成可复现该图片的提示词
-- 同时输出详细版和简洁版提示词
-- 可用于批量反推生成数据集的 prompt
+- Input an image, automatically analyze and generate a reproducible prompt
+- Outputs both a detailed and a brief version of the prompt
 
-### Agnes Image-to-Image
-- 输入参考图 + 文本描述，生成编辑后的图片
-- 支持最多 4 张参考图同时输入
-- Strength 控制修改程度（0=尽量保持原图，1=自由发挥）
+### Agnes Image-to-Image (Multi-Image Input)
+- Input reference image(s) + text description to generate edited images
+- **Supports up to 4 reference images simultaneously**
+- **Quality selection**: 1K / 2K / 4K
+- **Aspect ratios**: 1:1, 2:3, 3:4, 4:5, 9:16, 9:21, 3:2, 4:3, 5:4, 16:9, 21:9
+- Strength controls modification degree (0 = keep original, 1 = full creative freedom)
+- Output: `images` (IMAGE) + `resolution` (STRING)
 
 ### Agnes Text-to-Image
-- 纯文本描述生成图片
-- 支持多种输出尺寸
-- 可一次生成最多 4 张
+- Generate images from pure text descriptions
+- **Quality selection**: 1K / 2K / 4K
+- **Aspect ratios**: 1:1, 2:3, 3:4, 4:5, 9:16, 9:21, 3:2, 4:3, 5:4, 16:9, 21:9
+- Generate up to 4 images at once
+- Output: `images` (IMAGE) + `resolution` (STRING)
 
-### Agnes Image-to-Video
-- 一张图或多张图生成视频动画
-- 支持设置关键帧（start -> end）
-- 可调节帧数、帧率、seed
+### Agnes Image-to-Video (Multi-Image/Keyframes)
+- Generate video animation from one or more images
+- Supports keyframe setup (start -> end)
+- **Quality selection**: 1K / 2K
+- **Aspect ratios**: 1:1, 2:3, 3:4, 4:5, 9:16, 9:21, 3:2, 4:3, 5:4, 16:9, 21:9
+- Adjustable frame count (9-441, 8n+1 format) and frame rate (8-60fps)
+- Output: `video` (VIDEO) + `resolution` (STRING)
+- Videos saved to `ComfyUI/output/agnes_videos/` directory
 
 ### Agnes Text-to-Video
-- 纯文本描述生成视频
-- 支持帧数 9-441（8n+1 格式）
-- 可调节帧率（8-60fps）
-- 可设置 seed 复现结果
-- 生成时间较长，请耐心等待
+- Generate videos from pure text descriptions
+- **Quality selection**: 1K / 2K
+- **Aspect ratios**: 1:1, 2:3, 3:4, 4:5, 9:16, 9:21, 3:2, 4:3, 5:4, 16:9, 21:9
+- Adjustable frame count (9-441, 8n+1), frame rate (8-60fps), and seed
+- Output: `video` (VIDEO) + `resolution` (STRING)
+- Videos saved to `ComfyUI/output/agnes_videos/` directory
 
-## 注意事项
+## Video Output Type
 
-- 视频生成是异步任务，通常需要 2-10 分钟
-- 建议首次使用先测试文生图，确认 API Key 正常工作
-- 多张图片同时生成会增加等待时间
-- 免费 API 可能有频率限制
+Video nodes automatically select the output type by priority:
 
-## 许可证
+| Environment | Output Type | Description |
+|------|---------|------|
+| ComfyUI v1.7+ built-in | `VIDEO` | Native VideoFromFile, can connect directly to `SaveVideo` |
+| VHS installed | `VHS_VIDEOINFO` | Dict format, compatible with video workflows |
+| Neither | `STRING` | File path string |
+
+## Quality x Aspect Ratio Reference
+
+### Image Generation (1K / 2K / 4K)
+
+| Ratio | 1K | 2K | 4K |
+|------|------|------|------|
+| 1:1 | 1024x1024 | 2048x2048 | 4096x4096 |
+| 16:9 | 1816x1024 | 3640x2048 | 7280x4096 |
+| 9:16 | 1024x1816 | 2048x3640 | 4096x7280 |
+| 21:9 | 2384x1024 | 4776x2048 | 9552x4096 |
+| 9:21 | 1024x2384 | 2048x4776 | 4096x9552 |
+
+### Video Generation (1K / 2K)
+
+| Ratio | 1K | 2K |
+|------|------|------|
+| 1:1 | 1024x1024 | 2048x2048 |
+| 16:9 | 1816x1024 | 3640x2048 |
+| 9:16 | 1024x1816 | 2048x3640 |
+
+## Error Handling
+
+- **API 5xx errors** (502/503/504/524): Auto-retry 3 times with exponential backoff (3s/6s/12s)
+- **Connection timeout**: Auto-retry with descriptive error messages
+- **Cloudflare error pages**: Automatically parsed into readable messages
+- **CUDA OOM (server-side)**: Automatically detected with suggestions to reduce parameters
+
+## Project Structure
+
+```
+comfyui_agnes_ai/
+├── __init__.py              # Plugin entry point, registers 7 nodes
+├── config.yaml              # Default configuration
+├── requirements.txt         # Dependencies
+├── README.md                # This document
+├── api/
+│   └── __init__.py          # AgnesClient API wrapper (Chat / Image / Video)
+├── nodes/
+│   ├── __init__.py
+│   ├── api_key_config.py    # API Key persistence node
+│   ├── llm_chat.py          # LLM chat
+│   ├── image_reverse.py     # Image reverse prompt
+│   ├── text2img.py          # Text-to-image
+│   ├── img2img.py           # Image-to-image (multi-image)
+│   ├── text2video.py        # Text-to-video
+│   └── img2video.py         # Image-to-video (multi-image/keyframes)
+└── web/js/                  # Frontend extension directory (reserved)
+```
+
+## Changelog
+
+### v1.6.0 — Native VIDEO Type Output
+- Video node output supports ComfyUI native `VIDEO` type (v1.7+)
+- Three-level detection chain: comfy_api VIDEO → VHS_VIDEOINFO → STRING
+- Fixed `remixed_from_video_id` field name (actual URL field returned by API)
+- VIDEO type errors now raise instead of returning string (prevents downstream `SaveVideo` crash)
+
+### v1.4.0 — API Error Handling Improvements
+- HTML error pages (Cloudflare 5xx) automatically parsed into readable messages
+- 5xx/429 auto-retry 3 times, connection timeout auto-retry
+- Chat / Image / Video APIs all use unified retry mechanism
+
+### v1.3.0 — Image Node Quality & Resolution
+- `text2img` / `img2img` now support quality (1K/2K/4K) + aspect_ratio (11 options)
+- Auto-calculate actual pixels (aligned to multiples of 8)
+- Added `resolution` output
+
+### v1.2.0 — Video Output Path Optimization
+- Videos now save to `ComfyUI/output/agnes_videos/` instead of system temp directory
+- `generate_video()` added `output_dir` parameter
+
+### v1.1.0 — API Key Persistence
+- Added `AgnesAPIKeyConfig` node, key saved to `api_key_config.json`
+- `api_key` widget unified to empty string, auto-loads from config at runtime
+
+### v1.0.0 — Initial Release
+- 7 nodes: API Key Config, LLM Chat, Image Reverse, Text-to-Image, Image-to-Image, Text-to-Video, Image-to-Video
+
+## Notes
+
+- Video generation is asynchronous and typically takes 2-6 minutes
+- Free API may experience queuing (503) or GPU OOM (500) during peak hours — reducing quality/frames improves success rate
+- Recommended to test text-to-image first to confirm your API Key works
+- Generating multiple images simultaneously increases wait time
+
+## License
 
 MIT License
