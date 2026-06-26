@@ -5,6 +5,7 @@ Generate images from text descriptions using Agnes AI image generation models.
 Supports quality (1K/2K/4K) and aspect ratio selection.
 """
 
+import time
 import torch
 
 from ..api import (
@@ -12,58 +13,10 @@ from ..api import (
     get_api_key,
     IMAGE_MODEL,
     AVAILABLE_IMAGE_MODELS,
+    ASPECT_RATIOS,
+    compute_size,
     pil_to_tensor,
 )
-
-# Quality → short-side pixels
-QUALITY_MAP = {
-    "1K": 1024,
-    "2K": 2048,
-    "4K": 4096,
-}
-
-# Supported aspect ratios (width:height)
-ASPECT_RATIOS = [
-    "1:1",
-    "2:3",
-    "3:4",
-    "4:5",
-    "9:16",
-    "9:21",
-    "3:2",
-    "4:3",
-    "5:4",
-    "16:9",
-    "21:9",
-]
-
-
-def compute_size(quality: str, aspect_ratio: str) -> str:
-    """
-    Compute a WxH pixel size string from quality level and aspect ratio.
-
-    quality: "1K" / "2K" / "4K" — determines the short-side pixel count.
-    aspect_ratio: "W:H" — e.g. "16:9", "2:3".
-
-    Returns: e.g. "1792x1024"
-    """
-    base = QUALITY_MAP.get(quality, 1024)
-    w_ratio, h_ratio = map(int, aspect_ratio.split(":"))
-
-    if w_ratio >= h_ratio:
-        # Landscape or square: height = base, width scales up
-        height = base
-        width = base * w_ratio // h_ratio
-    else:
-        # Portrait: width = base, height scales up
-        width = base
-        height = base * h_ratio // w_ratio
-
-    # Round to nearest 8 (common AI model alignment requirement)
-    width = max(64, (width // 8) * 8)
-    height = max(64, (height // 8) * 8)
-
-    return f"{width}x{height}"
 
 
 class AgnesTextToImage:
@@ -73,6 +26,12 @@ class AgnesTextToImage:
     RETURN_TYPES = ("IMAGE", "STRING",)
     RETURN_NAMES = ("images", "resolution",)
     FUNCTION = "generate"
+
+    @classmethod
+    def IS_CHANGED(cls, seed=0, **kwargs):
+        if seed == 0:
+            return time.time()
+        return seed
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -109,6 +68,21 @@ class AgnesTextToImage:
                     "step": 1,
                     "tooltip": "Number of images to generate (more takes longer)",
                 }),
+                "seed": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 999,
+                    "step": 1,
+                    "tooltip": "Random seed (0 = random). Set a fixed value for reproducible results.",
+                }),
+            },
+            "optional": {
+                "negative_prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "placeholder": "ugly, blurry, distorted, low quality...",
+                    "tooltip": "Things to avoid in the generated image",
+                }),
             },
         }
 
@@ -120,6 +94,8 @@ class AgnesTextToImage:
         quality: str = "1K",
         aspect_ratio: str = "1:1",
         n: int = 1,
+        seed: int = 0,
+        negative_prompt: str = "",
     ):
         if not prompt.strip():
             raise ValueError("Prompt is empty. Please provide an image description.")
@@ -139,6 +115,8 @@ class AgnesTextToImage:
             size=size,
             n=n,
             model=model,
+            negative_prompt=negative_prompt.strip(),
+            seed=seed if seed > 0 else None,
         )
 
         if not pil_images:

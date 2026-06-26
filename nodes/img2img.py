@@ -7,6 +7,7 @@ to guide the generation process.
 Supports quality (1K/2K/4K) and aspect ratio selection.
 """
 
+import time
 import torch
 
 from ..api import (
@@ -14,56 +15,11 @@ from ..api import (
     get_api_key,
     IMAGE_MODEL,
     AVAILABLE_IMAGE_MODELS,
+    ASPECT_RATIOS,
+    compute_size,
     tensor_to_pil,
     pil_to_tensor,
 )
-
-# Quality → short-side pixels
-QUALITY_MAP = {
-    "1K": 1024,
-    "2K": 2048,
-    "4K": 4096,
-}
-
-# Supported aspect ratios (width:height)
-ASPECT_RATIOS = [
-    "1:1",
-    "2:3",
-    "3:4",
-    "4:5",
-    "9:16",
-    "9:21",
-    "3:2",
-    "4:3",
-    "5:4",
-    "16:9",
-    "21:9",
-]
-
-
-def compute_size(quality: str, aspect_ratio: str) -> str:
-    """
-    Compute a WxH pixel size string from quality level and aspect ratio.
-
-    quality: "1K" / "2K" / "4K" — determines the short-side pixel count.
-    aspect_ratio: "W:H" — e.g. "16:9", "2:3".
-
-    Returns: e.g. "1792x1024"
-    """
-    base = QUALITY_MAP.get(quality, 1024)
-    w_ratio, h_ratio = map(int, aspect_ratio.split(":"))
-
-    if w_ratio >= h_ratio:
-        height = base
-        width = base * w_ratio // h_ratio
-    else:
-        width = base
-        height = base * h_ratio // w_ratio
-
-    width = max(64, (width // 8) * 8)
-    height = max(64, (height // 8) * 8)
-
-    return f"{width}x{height}"
 
 
 class AgnesImageToImage:
@@ -73,6 +29,12 @@ class AgnesImageToImage:
     RETURN_TYPES = ("IMAGE", "STRING",)
     RETURN_NAMES = ("images", "resolution",)
     FUNCTION = "edit"
+
+    @classmethod
+    def IS_CHANGED(cls, seed=0, **kwargs):
+        if seed == 0:
+            return time.time()
+        return seed
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -119,6 +81,13 @@ class AgnesImageToImage:
                     "step": 1,
                     "tooltip": "Number of images to generate",
                 }),
+                "seed": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 999,
+                    "step": 1,
+                    "tooltip": "Random seed (0 = random). Set a fixed value for reproducible results.",
+                }),
             },
             "optional": {
                 "reference_image_2": ("IMAGE", {
@@ -129,6 +98,12 @@ class AgnesImageToImage:
                 }),
                 "reference_image_4": ("IMAGE", {
                     "tooltip": "Additional reference image (multi-image input)",
+                }),
+                "negative_prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "placeholder": "ugly, blurry, distorted, low quality...",
+                    "tooltip": "Things to avoid in the generated image",
                 }),
             },
         }
@@ -143,9 +118,11 @@ class AgnesImageToImage:
         aspect_ratio: str = "1:1",
         strength: float = 0.75,
         n: int = 1,
+        seed: int = 0,
         reference_image_2=None,
         reference_image_3=None,
         reference_image_4=None,
+        negative_prompt: str = "",
     ):
         # Runtime fallback: try config file if widget value is empty
         if not api_key.strip():
@@ -181,6 +158,8 @@ class AgnesImageToImage:
             size=size,
             n=n,
             model=model,
+            negative_prompt=negative_prompt.strip() if negative_prompt else "",
+            seed=seed if seed > 0 else None,
         )
 
         if not pil_images:

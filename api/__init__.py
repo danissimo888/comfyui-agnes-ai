@@ -73,21 +73,75 @@ MIME_MAP = {
     "bmp": "image/bmp",
 }
 
+QUALITY_MAP = {
+    "1K": 1024,
+    "2K": 2048,
+    "4K": 4096,
+}
+
+ASPECT_RATIOS = [
+    "1:1",
+    "2:3",
+    "3:4",
+    "4:5",
+    "9:16",
+    "9:21",
+    "3:2",
+    "4:3",
+    "5:4",
+    "16:9",
+    "21:9",
+]
+
+
+def compute_size(quality: str, aspect_ratio: str) -> str:
+    """Compute a WxH pixel size string from quality level and aspect ratio."""
+    base = QUALITY_MAP.get(quality, 1024)
+    w_ratio, h_ratio = map(int, aspect_ratio.split(":"))
+
+    if w_ratio >= h_ratio:
+        height = base
+        width = base * w_ratio // h_ratio
+    else:
+        width = base
+        height = base * h_ratio // w_ratio
+
+    max_dim = 4096
+    if max(width, height) > max_dim:
+        if width >= height:
+            height = max_dim * height // width
+            width = max_dim
+        else:
+            width = max_dim * width // height
+            height = max_dim
+
+    width = max(64, (width // 8) * 8)
+    height = max(64, (height // 8) * 8)
+
+    return f"{width}x{height}"
+
 
 # ---------------------------------------------------------------------------
 # Helper utilities
 # ---------------------------------------------------------------------------
 
 def tensor_to_pil(tensor) -> Image.Image:
-    """
-    Convert a ComfyUI IMAGE tensor [B, H, W, C] (float32, 0..1) to a PIL Image.
-    Returns the first image in the batch.
-    """
+    """Convert first image from a ComfyUI IMAGE tensor [B, H, W, C] to PIL."""
     np = _get_np()
-    # Take first image: [H, W, C]
     img = tensor[0].cpu().numpy()
     img = (img * 255).astype(np.uint8)
     return Image.fromarray(img)
+
+
+def tensor_to_pil_list(tensor) -> list:
+    """Convert all images from a ComfyUI IMAGE tensor [B, H, W, C] to list of PIL."""
+    np = _get_np()
+    results = []
+    for i in range(tensor.shape[0]):
+        img = tensor[i].cpu().numpy()
+        img = (img * 255).astype(np.uint8)
+        results.append(Image.fromarray(img))
+    return results
 
 
 def pil_to_tensor(pil_img: Image.Image):
@@ -140,9 +194,22 @@ class AgnesClient:
         self.api_key = api_key
         self.session = requests.Session()
         self.session.headers.update({
-            "Authorization": api_key,
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         })
+
+    def _post_with_retry(self, url: str, payload: dict, timeout: int = 300, max_retries: int = 3) -> requests.Response:
+        for attempt in range(max_retries):
+            try:
+                resp = self.session.post(url, json=payload, timeout=timeout)
+                if resp.status_code not in (429, 500, 502, 503, 504) or attempt == max_retries - 1:
+                    return resp
+                time.sleep(2 ** attempt)
+            except requests.exceptions.ConnectionError:
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(2 ** attempt)
+        return resp
 
     # ------------------------------------------------------------------
     # Chat / LLM
@@ -154,6 +221,7 @@ class AgnesClient:
         model: str = CHAT_MODEL,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        top_p: float = 1.0,
         stream: bool = False,
     ) -> str:
         """
@@ -177,7 +245,9 @@ class AgnesClient:
             "max_tokens": max_tokens,
             "stream": stream,
         }
-        resp = self.session.post(url, json=payload, timeout=300)
+        if top_p < 1.0:
+            payload["top_p"] = top_p
+        resp = self._post_with_retry(url, payload, timeout=300)
         if resp.status_code != 200:
             raise RuntimeError(f"Chat API error ({resp.status_code}): {resp.text}")
 
@@ -199,6 +269,8 @@ class AgnesClient:
         size: str = DEFAULT_SIZE,
         n: int = 1,
         model: str = IMAGE_MODEL,
+        negative_prompt: str = "",
+        seed: Optional[int] = None,
     ) -> List[Image.Image]:
         """
         Generate images via the Agnes image generation API.
@@ -221,6 +293,10 @@ class AgnesClient:
             "size": size,
             "n": n,
         }
+        if negative_prompt:
+            payload["negative_prompt"] = negative_prompt
+        if seed is not None:
+            payload["seed"] = seed
 
         if mode == "img2img" and reference_images:
             image_uris = [pil_to_base64_uri(img) for img in reference_images]
@@ -229,7 +305,31 @@ class AgnesClient:
                 "response_format": "url",
             }
 
-        resp = self.session.post(url, json=payload, timeout=300)
+        resp = self._post_with_retry(url, payload, timeout=300)
+
+        if resp.status_code == 400:
+            try:
+                err = resp.json().get("error", {})
+                if err.get("code") == "content_policy_violation":
+                    sanitized = self.chat(
+                        messages=[{
+                            "role": "user",
+                            "content": (
+                                "The following image generation prompt was rejected by a content safety filter. "
+                                "Rewrite it to be safe while preserving the artistic intent, composition, style, "
+                                "and visual details. Remove anything suggestive, violent, or explicit. "
+                                "Output ONLY the rewritten prompt, nothing else.\n\n"
+                                f"Original prompt: {prompt}"
+                            ),
+                        }],
+                        temperature=0.3,
+                        max_tokens=2048,
+                    )
+                    payload["prompt"] = sanitized.strip()
+                    resp = self._post_with_retry(url, payload, timeout=300)
+            except Exception:
+                pass
+
         if resp.status_code != 200:
             raise RuntimeError(f"Image API error ({resp.status_code}): {resp.text}")
 
@@ -257,6 +357,7 @@ class AgnesClient:
         num_frames: int = DEFAULT_VIDEO_FRAMES,
         frame_rate: int = DEFAULT_VIDEO_FPS,
         seed: Optional[int] = None,
+        negative_prompt: str = "",
         poll_interval: int = 10,
         max_wait: int = 600,
         output_dir: Optional[str] = None,
@@ -299,6 +400,8 @@ class AgnesClient:
         }
         if seed is not None:
             payload["seed"] = seed
+        if negative_prompt:
+            payload["negative_prompt"] = negative_prompt
 
         if mode == "img2video" and reference_images:
             image_uris = [pil_to_base64_uri(img) for img in reference_images]
@@ -306,7 +409,7 @@ class AgnesClient:
                 "image": image_uris,
             }
 
-        resp = self.session.post(url, json=payload, timeout=60)
+        resp = self._post_with_retry(url, payload, timeout=60)
         if resp.status_code not in (200, 201, 202):
             raise RuntimeError(f"Video submit error ({resp.status_code}): {resp.text}")
 
@@ -376,6 +479,8 @@ class AgnesClient:
         image: Image.Image,
         model: str = CHAT_MODEL,
         detail: str = "detailed",
+        temperature: float = 0.3,
+        max_tokens: int = 2048,
     ) -> str:
         """
         Analyze an image and generate a prompt that could reproduce it.
@@ -419,7 +524,7 @@ class AgnesClient:
             },
         ]
 
-        return self.chat(messages, model=model, temperature=0.3, max_tokens=2048)
+        return self.chat(messages, model=model, temperature=temperature, max_tokens=max_tokens)
 
 
 # ---------------------------------------------------------------------------

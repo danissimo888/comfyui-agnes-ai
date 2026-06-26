@@ -5,6 +5,7 @@ Analyzes an input image and generates a detailed AI image generation prompt
 that describes the image. Uses Agnes-2.0-Flash vision capability.
 """
 
+import time
 from typing import Tuple
 
 from ..api import AgnesClient, get_api_key, CHAT_MODEL, AVAILABLE_CHAT_MODELS, tensor_to_pil
@@ -17,6 +18,10 @@ class AgnesImageReverse:
     RETURN_TYPES = ("STRING", "STRING",)
     RETURN_NAMES = ("prompt", "brief_prompt",)
     FUNCTION = "reverse"
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return time.time()
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -35,10 +40,24 @@ class AgnesImageReverse:
                     "default": CHAT_MODEL,
                     "tooltip": "Vision-capable model for image analysis",
                 }),
+                "temperature": ("FLOAT", {
+                    "default": 0.3,
+                    "min": 0.0,
+                    "max": 2.0,
+                    "step": 0.05,
+                    "tooltip": "Sampling temperature (lower = more consistent descriptions)",
+                }),
+                "max_tokens": ("INT", {
+                    "default": 2048,
+                    "min": 64,
+                    "max": 8192,
+                    "step": 64,
+                    "tooltip": "Maximum tokens for prompt generation",
+                }),
             },
         }
 
-    def reverse(self, api_key: str, image, model: str = CHAT_MODEL) -> Tuple[str, str]:
+    def reverse(self, api_key: str, image, model: str = CHAT_MODEL, temperature: float = 0.3, max_tokens: int = 2048) -> Tuple[str, str]:
         # Runtime fallback: try config file if widget value is empty
         if not api_key.strip():
             api_key = get_api_key()
@@ -52,11 +71,8 @@ class AgnesImageReverse:
 
             client = AgnesClient(api_key)
 
-            # Generate detailed prompt
-            detailed = client.reverse_prompt(pil_img, model=model, detail="detailed")
-
-            # Generate brief prompt
-            brief = client.reverse_prompt(pil_img, model=model, detail="brief")
+            detailed = client.reverse_prompt(pil_img, model=model, detail="detailed", temperature=temperature, max_tokens=max_tokens)
+            brief = client.reverse_prompt(pil_img, model=model, detail="brief", temperature=temperature, max_tokens=max_tokens)
 
             return (detailed, brief)
         except Exception as e:

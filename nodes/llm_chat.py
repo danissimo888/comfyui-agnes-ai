@@ -5,6 +5,7 @@ Enables text-based conversation with Agnes AI's LLM (agnes-2.0-flash).
 Supports multi-turn dialogue via optional system prompt and conversation history.
 """
 
+import time
 from typing import Any, Dict, Tuple
 
 from ..api import AgnesClient, get_api_key, CHAT_MODEL, AVAILABLE_CHAT_MODELS
@@ -17,6 +18,10 @@ class AgnesLLMChat:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("response",)
     FUNCTION = "chat"
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return time.time()
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -52,6 +57,13 @@ class AgnesLLMChat:
                     "step": 1,
                     "tooltip": "Maximum number of tokens in the response",
                 }),
+                "top_p": ("FLOAT", {
+                    "default": 1.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.05,
+                    "tooltip": "Nucleus sampling threshold (lower = more focused output)",
+                }),
             },
             "optional": {
                 "system_prompt": ("STRING", {
@@ -70,6 +82,7 @@ class AgnesLLMChat:
         model: str = CHAT_MODEL,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        top_p: float = 1.0,
         system_prompt: str = "",
     ) -> Tuple[str]:
         if not prompt.strip():
@@ -93,6 +106,7 @@ class AgnesLLMChat:
                 model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                top_p=top_p,
             )
             return (response,)
         except Exception as e:

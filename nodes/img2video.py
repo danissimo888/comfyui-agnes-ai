@@ -10,6 +10,7 @@ preview and download from the web UI.
 """
 
 import os
+import time
 from typing import Tuple
 
 from ..api import (
@@ -53,6 +54,12 @@ class AgnesImageToVideo:
     FUNCTION = "generate"
 
     @classmethod
+    def IS_CHANGED(cls, seed=0, **kwargs):
+        if seed == 0:
+            return time.time()
+        return seed
+
+    @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
@@ -92,9 +99,9 @@ class AgnesImageToVideo:
                 "seed": ("INT", {
                     "default": 0,
                     "min": 0,
-                    "max": 2147483647,
+                    "max": 999,
                     "step": 1,
-                    "tooltip": "Random seed (0 = random). Set to reuse for reproducible results.",
+                    "tooltip": "Random seed (0 = random). Set a fixed value for reproducible results.",
                 }),
                 "max_wait_seconds": ("INT", {
                     "default": 600,
@@ -107,6 +114,12 @@ class AgnesImageToVideo:
             "optional": {
                 "end_frame_image": ("IMAGE", {
                     "tooltip": "Optional end frame for keyframe-based animation (image -> image transition)",
+                }),
+                "negative_prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "placeholder": "blurry, low quality, distorted...",
+                    "tooltip": "Things to avoid in the generated video",
                 }),
             },
         }
@@ -122,6 +135,7 @@ class AgnesImageToVideo:
         seed: int = 0,
         max_wait_seconds: int = 600,
         end_frame_image=None,
+        negative_prompt: str = "",
     ) -> Tuple[str, str]:
         # Runtime fallback: try config file if widget value is empty
         if not api_key.strip():
@@ -148,6 +162,7 @@ class AgnesImageToVideo:
                 num_frames=num_frames,
                 frame_rate=frame_rate,
                 seed=seed if seed > 0 else None,
+                negative_prompt=negative_prompt.strip() if negative_prompt else "",
                 max_wait=max_wait_seconds,
                 output_dir=output_dir,
             )
