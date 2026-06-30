@@ -93,6 +93,10 @@ ASPECT_RATIOS = [
     "21:9",
 ]
 
+VIDEO_ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3", "3:4"]
+VIDEO_RESOLUTION_TIERS = ["480p", "720p", "1080p"]
+VIDEO_RESOLUTION_MAP = {"480p": 480, "720p": 720, "1080p": 1080}
+
 
 def compute_size(quality: str, aspect_ratio: str) -> str:
     """Compute a WxH pixel size string from quality level and aspect ratio."""
@@ -119,6 +123,31 @@ def compute_size(quality: str, aspect_ratio: str) -> str:
     height = max(64, (height // 8) * 8)
 
     return f"{width}x{height}"
+
+
+def compute_video_dimensions(resolution: str, aspect_ratio: str) -> Tuple[int, int]:
+    """Compute (width, height) for video from resolution tier and aspect ratio."""
+    short_side = VIDEO_RESOLUTION_MAP.get(resolution, 720)
+    w_ratio, h_ratio = map(int, aspect_ratio.split(":"))
+
+    if w_ratio >= h_ratio:
+        height = short_side
+        width = short_side * w_ratio // h_ratio
+    else:
+        width = short_side
+        height = short_side * h_ratio // w_ratio
+
+    width = max(64, (width // 8) * 8)
+    height = max(64, (height // 8) * 8)
+    return (width, height)
+
+
+def duration_to_num_frames(duration_seconds: float, frame_rate: int) -> int:
+    """Convert duration in seconds to valid num_frames (8n+1, range 9-441)."""
+    raw_frames = duration_seconds * frame_rate
+    n = round((raw_frames - 1) / 8)
+    n = max(1, min(55, n))
+    return 8 * n + 1
 
 
 # ---------------------------------------------------------------------------
@@ -356,6 +385,8 @@ class AgnesClient:
         model: str = VIDEO_MODEL,
         num_frames: int = DEFAULT_VIDEO_FRAMES,
         frame_rate: int = DEFAULT_VIDEO_FPS,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
         seed: Optional[int] = None,
         negative_prompt: str = "",
         poll_interval: int = 10,
@@ -398,6 +429,9 @@ class AgnesClient:
             "frame_rate": frame_rate,
             "response_format": "url",
         }
+        if width is not None and height is not None:
+            payload["width"] = width
+            payload["height"] = height
         if seed is not None:
             payload["seed"] = seed
         if negative_prompt:
@@ -409,7 +443,7 @@ class AgnesClient:
                 "image": image_uris,
             }
 
-        resp = self._post_with_retry(url, payload, timeout=60)
+        resp = self._post_with_retry(url, payload, timeout=300)
         if resp.status_code not in (200, 201, 202):
             raise RuntimeError(f"Video submit error ({resp.status_code}): {resp.text}")
 
